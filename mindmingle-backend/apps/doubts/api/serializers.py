@@ -1,24 +1,24 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from ..models import Doubt, Comment, Answer, Reaction, Tag, DoubtImage
+from apps.core.api.serializers import UserSerializer
 
+from django.db.models import Count
 
 User = get_user_model()
 
-class UserSerializer(serializers.ModelSerializer):
+class DoubtImageSerializer(serializers.ModelSerializer):
     class Meta:
-        model = User
-        fields = ['id', 'username', 'avatar', 'reputation']
+        model = DoubtImage
+        fields = ['id', 'image', 'uploaded_at']
+        read_only_fields = ['id', 'uploaded_at']      
         
+                
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
         fields = ['id', 'name']   
 
-class DoubtImageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DoubtImage
-        fields = ['id', 'image']
 
 class DoubtSerializer(serializers.ModelSerializer):
     author = UserSerializer(read_only=True)
@@ -34,11 +34,17 @@ class DoubtSerializer(serializers.ModelSerializer):
     )
     
     # For accepting multiple images during doubt creation or update(used in POST/PUT request)
-    images_upload = serializers.ListField(
-        child=serializers.ImageField(),
-        write_only=True,
-        required=False
-    )
+    # images_upload = serializers.ListField(
+    #     child=serializers.ImageField(),
+    #     write_only=True,
+    #     required=False
+    # )
+    
+    # images_upload = serializers.ListField(
+    #     child=serializers.FileField(),
+    #     write_only=True,
+    #     required=False
+    # )
     
     upvotes_count = serializers.SerializerMethodField()
     downvotes_count = serializers.SerializerMethodField()
@@ -51,11 +57,11 @@ class DoubtSerializer(serializers.ModelSerializer):
             'id', 'title', 'content', 'tags', 'tag_names', 'author', 
             'ai_summary', 'upvotes_count', 'downvotes_count', 'answers_count',
             'views_count', 'is_trending', 'is_public', 'is_resolved',
-            'created_at', 'updated_at', 'images', 'reactions_summary', 'images_upload'
+            'created_at', 'updated_at', 'images', 'reactions_summary'
         ]
         read_only_fields = ['id', 'author', 'tags', 'upvotes_count', 
-                          'downvotes_count', 'answers_count', 'images', 'reactions_summary', 'images_upload']
-        
+                          'downvotes_count', 'answers_count', 'images', 'reactions_summary']
+    
     def get_upvotes_count(self, obj):
         return obj.upvotes.count()   # Assuming you have a related name 'upvotes' for the upvote relationship
         # obj.upvotes gives you the list of users who upvoted the doubt, so you can count them to get the total number of upvotes.
@@ -63,22 +69,16 @@ class DoubtSerializer(serializers.ModelSerializer):
     def get_downvotes_count(self, obj):
         return obj.downvotes.count() # Assuming you have a related name 'downvotes' for the downvote relationship
         # obj.downvotes gives you the list of users who downvoted the doubt, so you can count them to get the total number of downvotes.
-        
+    
     def get_reactions_summary(self, obj):
-        reactions = obj.reaction_set.values('reaction_type').annotate(count=models.Count('id'))# Assuming you have a related name 'reaction_set' for the Reaction model related to Doubt
+        reactions = obj.reaction_set.values('reaction_type').annotate(count=Count('id'))
         return {r['reaction_type']: r['count'] for r in reactions}
     
     def create(self, validated_data):
         # Pop the tag names from the validated data and create the doubt first, then associate the tags with the doubt Because tag_names is NOT a field in the Doubt model.
         tag_names = validated_data.pop('tag_names', [])
         
-        images = validated_data.pop('images_upload', [])
-        
-        doubt = Doubt.objects.create(author = self.context['request'].user,**validated_data)
-        
-        for image in images:
-            DoubtImage.objects.create(doubt=doubt, image=image)
-        
+        doubt = Doubt.objects.create(**validated_data)
         
         for tag_name in tag_names:
             tag, created = Tag.objects.get_or_create(name=tag_name)
@@ -88,7 +88,11 @@ class DoubtSerializer(serializers.ModelSerializer):
     
     
 class AnswerSerializer(serializers.ModelSerializer):
+    
+    #backend automatically sets the author to the user making the request, so we make it read-only in the serializer 
+    # and set it in the create method.Indirectly we are attaching the user for the Answer.
     author = UserSerializer(read_only=True)
+    
     upvotes_count = serializers.SerializerMethodField()
     downvotes_count = serializers.SerializerMethodField()
     
@@ -130,3 +134,5 @@ class ReactionSerializer(serializers.ModelSerializer):
         model = Reaction
         fields = ['id', 'reaction_type']
         read_only_fields = ['id']        
+        
+  

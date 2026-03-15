@@ -4,7 +4,7 @@ from .models import User, Profile, Friendship
 
 @admin.register(User)
 class CustomUserAdmin(UserAdmin):
-    list_display = ['username', 'email', 'reputation', 'is_admin', 'is_online']
+    list_display = ['username', 'email', 'is_admin', 'is_online']
     list_filter = ['is_admin', 'is_online']
     search_fields = ['username', 'email']
 

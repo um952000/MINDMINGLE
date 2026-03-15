@@ -43,6 +43,9 @@ class Doubt(models.Model):
         related_name='downvoted_doubts',
         blank=True
     )
+    
+    upvotes_count = models.IntegerField(default=0)
+    downvotes_count = models.IntegerField(default=0)
 
     answers_count = models.IntegerField(default=0)
     views_count = models.IntegerField(default=0)
@@ -122,6 +125,9 @@ class Answer(models.Model):
         related_name='downvoted_answers',
         blank=True
     )
+
+    upvotes_count = models.IntegerField(default=0)
+    downvotes_count = models.IntegerField(default=0)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

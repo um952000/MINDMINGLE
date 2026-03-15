@@ -22,43 +22,20 @@ from drf_yasg import openapi
 from rest_framework import serializers
 
 from django.db.models import F
-
-# @api_view(['POST'])
-# @permission_classes([AllowAny])
-# def registration_view(request):
-
-#     serializer = RegistrationSerializer(data=request.data)
     
-#     data = {}
 
-#     if serializer.is_valid():
-#         account = serializer.save()
-#         data['response'] = 'Registration successful'
-#         data['username'] = account.username
-#         data['email'] = account.email
-        
-#         # for Token Authentication
-#         # token = Token.objects.get(user=account).key
-#         # data['token'] = token
-        
-#         # for JWT Authentication
-#         refresh = RefreshToken.for_user(account)
-#         data['token'] = {
-#             'refresh': str(refresh),
-#             'access': str(refresh.access_token),
-#         }
-        
-#         return Response(data, status=status.HTTP_201_CREATED)
+class AuthViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserSerializer
+    queryset = User.objects.none()
 
-#     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-# @api_view(['POST'])
-# def logout_view(request):
-    
-#     if request.method == 'POST':
-#         request.user.auth_token.delete() # To delete the user's auth token from the database, effectively logging them out and preventing further authenticated requests using that token.
-#         return Response(status=status.HTTP_200_OK)
+    @action(detail=False, methods=['get'], url_path='me')
+    def me(self, request):
+        return Response({
+            'id': request.user.id,
+            'username': request.user.username,
+            'email': request.user.email,
+        })
 
 class RegistrationView(APIView):
     permission_classes = [AllowAny]
@@ -132,7 +109,22 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     # Working : GET all users except self
     # api: GET /api/users/ - to get a list of all users (excluding the authenticated user)
     def get_queryset(self):
-        return User.objects.exclude(id=self.request.user.id).select_related('profile')
+        if getattr(self, 'swagger_fake_view', False):
+            return User.objects.none()
+
+        # ✅ for detail view (retrieve), include all users
+        # for list view, exclude self
+        if self.action == 'retrieve':
+            return User.objects.all().select_related(
+                'profile', 'user_level'
+            ).prefetch_related('user_badges__badge')
+
+        # list - exclude self
+        return User.objects.exclude(
+            id=self.request.user.id
+        ).select_related(
+            'profile', 'user_level'
+        ).prefetch_related('user_badges__badge')
     
     @action(detail=False, methods=['get'])
     def me(self, request, pk=None):
@@ -173,6 +165,9 @@ class FriendshipViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Friendship.objects.none()
+        
         return Friendship.objects.filter(
             Q(from_user=self.request.user) | Q(to_user=self.request.user)
         ).select_related('from_user', 'to_user')

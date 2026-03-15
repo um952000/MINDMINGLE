@@ -3,13 +3,16 @@ from rest_framework.authtoken.views import obtain_auth_token # To create auth to
 
 from django.urls import path, include
 from . import views
-from .views import LogoutView, RegistrationView
+from .views import AuthViewSet, LogoutView, RegistrationView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework.routers import DefaultRouter
+
+
 
 router = DefaultRouter()
 router.register(r'users', views.UserViewSet, basename='user')
 router.register(r'friendships', views.FriendshipViewSet, basename='friendship')
+router.register(r'auth', AuthViewSet, basename='auth')
 
 urlpatterns = [
     

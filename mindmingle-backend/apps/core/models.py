@@ -5,7 +5,6 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.conf import settings
 from rest_framework.authtoken.models import Token
-
 from django.db import transaction
 from django.db.models import F
  
@@ -18,7 +17,6 @@ class User(AbstractUser):
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
     bio = models.TextField(max_length=500, blank=True)
     location = models.CharField(max_length=100, blank=True)
-    reputation = models.IntegerField(default=0)
     skills = models.JSONField(default=list, blank=True)  # List of skills
     is_online = models.BooleanField(default=False)  # To track online status
     last_seen = models.DateTimeField(auto_now=True)  # To track last seen time
@@ -28,10 +26,15 @@ class User(AbstractUser):
     
     is_private = models.BooleanField(default=False)  # To allow users to set their profile as private, which will restrict access to their profile information and posts to only their followers.
     
+    # Activity tracking fields
+    total_doubts_asked = models.IntegerField(default=0)  # To track the total number of doubts asked by the user
+    total_answers_given = models.IntegerField(default=0)  # To track the total number of answers given by the user
+    accepted_answers_count = models.IntegerField(default=0)  # To track the total number of accepted answers by the user
+    
     class Meta:
         indexes = [
             models.Index(fields=['is_online', 'last_seen']),
-            models.Index(fields=['reputation']),
+        
         ]
         
     def __str__(self):
@@ -39,9 +42,16 @@ class User(AbstractUser):
         
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    
     date_of_birth = models.DateField(null=True, blank=True)
     phone = models.CharField(max_length=20, blank=True)
     website = models.URLField(blank=True)
+    qualifications = models.CharField(max_length=200, blank=True)
+    
+    github = models.URLField(blank=True)
+    linkedin = models.URLField(blank=True)
+    twitter = models.URLField(blank=True)
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -107,6 +117,7 @@ class Profile(models.Model):
         
 #     def __str__(self):
 #         return f"{self.from_user.username} -> {self.to_user.username} ({self.status})"
+
     
 class Friendship(models.Model):
     STATUS_CHOICES = [
