@@ -203,7 +203,7 @@ export default function Navbar() {
                     <div className="flex items-center gap-3">
 
                         {/* Ask Doubt */}
-                        <Link
+                        {/* <Link
                             to={isAuthenticated ? "/ask" : "/login"}
                             className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all shadow-lg shadow-violet-500/20"
                         >
@@ -211,7 +211,7 @@ export default function Navbar() {
                                 <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
                             )}
                             Ask Doubt
-                        </Link>
+                        </Link> */}
 
                         {isAuthenticated ? (
                             <>

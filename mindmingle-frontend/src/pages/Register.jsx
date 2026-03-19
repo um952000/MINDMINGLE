@@ -283,10 +283,10 @@ export default function Register() {
                                 value={formData.password2}
                                 onChange={(e) => setFormData({ ...formData, password2: e.target.value })}
                                 className={`w-full bg-gray-800 border text-slate-200 placeholder-slate-600 rounded-xl pl-10 pr-11 py-3 text-sm focus:outline-none focus:ring-1 transition-all ${formData.password2 && formData.password !== formData.password2
-                                        ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20'
-                                        : formData.password2 && formData.password === formData.password2
-                                            ? 'border-green-500/50 focus:border-green-500/50 focus:ring-green-500/20'
-                                            : 'border-gray-700 focus:border-violet-500/50 focus:ring-violet-500/20'
+                                    ? 'border-red-500/50 focus:border-red-500/50 focus:ring-red-500/20'
+                                    : formData.password2 && formData.password === formData.password2
+                                        ? 'border-green-500/50 focus:border-green-500/50 focus:ring-green-500/20'
+                                        : 'border-gray-700 focus:border-violet-500/50 focus:ring-violet-500/20'
                                     }`}
                                 placeholder="Repeat your password"
                             />

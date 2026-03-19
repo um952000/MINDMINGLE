@@ -170,7 +170,7 @@ export default function Profile() {
 
                 {/* Name + Info */}
                 <div className="mb-6">
-                    <h1 className="text-2xl font-black text-white tracking-tight mb-1">{user.username}</h1>
+                    <h1 className="text-2xl font-black text-white tracking-tight mb-1">{user.first_name} {user.last_name}</h1>
                     {user.profile?.field_of_study && (
                         <p className="text-violet-400 font-semibold text-sm mb-2">{user.profile.field_of_study}</p>
                     )}
