@@ -1,0 +1,11 @@
+Cloud name	
+dtxq7nnej
+
+API key	
+696766942398892
+
+API secret
+dS9KRhJQqNdMEl7uPE1LsW6Xffo
+
+API environment variable	
+CLOUDINARY_URL=cloudinary://696766942398892:dS9KRhJQqNdMEl7uPE1LsW6Xffo@dtxq7nnej
