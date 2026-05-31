@@ -1,156 +1,15 @@
-// import { useState } from 'react'
-// import { useNavigate } from 'react-router-dom'
-// import { useAuth } from '../hooks/useAuth'
-// import { doubtAPI } from '../services/api'
-// import TagInput from '../components/DoubtCard/TagInput'
-// import ImageUploader from '../components/DoubtCard/ImageUploader'
-
-// export default function AskDoubt() {
-//     const [formData, setFormData] = useState({
-//         title: '',
-//         content: '',
-//         tags: [],
-//         images: []
-//     })
-//     const [loading, setLoading] = useState(false)
-//     const [error, setError] = useState('')
-//     const { user } = useAuth()
-//     const navigate = useNavigate()
-
-//     const handleSubmit = async (e) => {
-//         e.preventDefault()
-//         setLoading(true)
-//         setError('')
-
-//         try {
-//             // Step 1: Create doubt
-//             const response = await doubtAPI.createDoubt({
-//                 title: formData.title,
-//                 content: formData.content,
-//                 tag_names: formData.tags
-//             })
-
-//             const doubtId = response.data.id
-
-//             // Step 2: Upload images
-//             for (let image of formData.images) {
-//                 const formDataImage = new FormData()
-//                 formDataImage.append('image', image)
-//                 formDataImage.append('doubt', doubtId)
-
-//                 await fetch('http://localhost:8000/api/doubts/images/', {
-//                     method: 'POST',
-//                     headers: {
-//                         'Authorization': `Bearer ${localStorage.getItem('token')}`
-//                     },
-//                     body: formDataImage
-//                 })
-//             }
-
-//             navigate(`/`)
-//         } catch (err) {
-//             setError(err.response?.data?.title?.[0] || 'Failed to create doubt')
-//         } finally {
-//             setLoading(false)
-//         }
-//     }
-
-//     return (
-//         <div className="max-w-4xl mx-auto space-y-8">
-//             {/* Header */}
-//             <div className="text-center">
-//                 <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">
-//                     Ask a new doubt
-//                 </h1>
-//                 <p className="text-lg text-gray-600 mt-2">
-//                     Be specific and descriptive to get better answers
-//                 </p>
-//             </div>
-
-//             {error && (
-//                 <div className="bg-red-50 border border-red-200 text-red-800 px-6 py-4 rounded-xl">
-//                     {error}
-//                 </div>
-//             )}
-
-//             {/* Form */}
-//             <form onSubmit={handleSubmit} className="space-y-6 bg-white p-8 rounded-2xl shadow-xl">
-//                 {/* Title */}
-//                 <div>
-//                     <label className="block text-sm font-medium text-gray-700 mb-2">
-//                         Title <span className="text-red-500">*</span>
-//                     </label>
-//                     <input
-//                         type="text"
-//                         placeholder="What's your programming doubt?"
-//                         value={formData.title}
-//                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-//                         className="w-full px-6 py-4 border border-gray-200 rounded-xl text-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
-//                         maxLength={300}
-//                         required
-//                     />
-//                     <p className="text-xs text-gray-500 mt-1">
-//                         {formData.title.length}/300 characters
-//                     </p>
-//                 </div>
-
-//                 {/* Content */}
-//                 <div>
-//                     <label className="block text-sm font-medium text-gray-700 mb-2">
-//                         Describe your problem <span className="text-red-500">*</span>
-//                     </label>
-//                     <textarea
-//                         rows={8}
-//                         placeholder="Include code snippets, error messages, what you've tried..."
-//                         value={formData.content}
-//                         onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-//                         className="w-full px-6 py-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-vertical"
-//                         required
-//                     />
-//                 </div>
-
-//                 {/* Tags */}
-//                 <TagInput
-//                     tags={formData.tags}
-//                     onTagsChange={(tags) => setFormData({ ...formData, tags })}
-//                 />
-
-//                 {/* Images */}
-//                 <ImageUploader
-//                     images={formData.images}
-//                     onImagesChange={(images) => setFormData({ ...formData, images })}
-//                 />
-
-//                 {/* Submit */}
-//                 <button
-//                     type="submit"
-//                     disabled={loading || !formData.title || !formData.content}
-//                     className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-semibold py-4 px-8 rounded-xl text-lg shadow-xl hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-//                 >
-//                     {loading ? (
-//                         <span className="flex items-center gap-2 justify-center">
-//                             <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-//                             Posting your doubt...
-//                         </span>
-//                     ) : (
-//                         'Post Doubt'
-//                     )}
-//                 </button>
-//             </form>
-//         </div>
-//     )
-// }
-
-
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { doubtAPI } from '../services/api'
 import TagInput from '../components/DoubtCard/TagInput'
 import ImageUploader from '../components/DoubtCard/ImageUploader'
-import { HelpCircle, FileText, Tag, Image, Send } from 'lucide-react'
+import { HelpCircle, FileText, Tag, Image, Send, Pencil } from 'lucide-react'
 
 export default function AskDoubt() {
+    const { id } = useParams()
+    const isEditMode = Boolean(id)
+
     const [formData, setFormData] = useState({
         title: '',
         content: '',
@@ -158,9 +17,36 @@ export default function AskDoubt() {
         images: []
     })
     const [loading, setLoading] = useState(false)
+    const [fetching, setFetching] = useState(isEditMode)
     const [error, setError] = useState('')
     const { user } = useAuth()
     const navigate = useNavigate()
+
+    // prefill form in edit mode
+    useEffect(() => {
+        if (!isEditMode) return
+
+        const loadDoubt = async () => {
+            try {
+                setFetching(true)
+                const res = await doubtAPI.getDoubt(id)
+                const doubt = res.data
+                setFormData({
+                    title: doubt.title || '',
+                    content: doubt.content || '',
+                    tags: doubt.tags?.map(t => t.name || t) || [],
+                    images: []   // existing images handled separately below
+                })
+            } catch (e) {
+                setError('Failed to load doubt')
+                console.error(e)
+            } finally {
+                setFetching(false)
+            }
+        }
+
+        loadDoubt()
+    }, [id, isEditMode])
 
     const handleSubmit = async (e) => {
         e.preventDefault()
@@ -168,35 +54,76 @@ export default function AskDoubt() {
         setError('')
 
         try {
-            const response = await doubtAPI.createDoubt({
-                title: formData.title,
-                content: formData.content,
-                tag_names: formData.tags
-            })
-
-            const doubtId = response.data.id
-
-            for (let image of formData.images) {
-                const formDataImage = new FormData()
-                formDataImage.append('image', image)
-                formDataImage.append('doubt', doubtId)
-
-                await fetch('http://localhost:8000/api/doubts/images/', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    },
-                    body: formDataImage
+            if (isEditMode) {
+                // EDIT
+                await doubtAPI.updateDoubt(id, {
+                    title: formData.title,
+                    content: formData.content,
+                    tag_names: formData.tags
                 })
-            }
 
-            navigate('/')
+                // upload any new images added during edit
+                for (let image of formData.images) {
+                    const formDataImage = new FormData()
+                    formDataImage.append('image', image)
+                    formDataImage.append('doubt', id)
+
+                    await fetch('http://localhost:8000/api/doubts/images/', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        },
+                        body: formDataImage
+                    })
+                }
+
+                navigate(`/doubts/${id}`)
+
+            } else {
+                // CREATE
+                const response = await doubtAPI.createDoubt({
+                    title: formData.title,
+                    content: formData.content,
+                    tag_names: formData.tags
+                })
+
+                const doubtId = response.data.id
+
+                for (let image of formData.images) {
+                    const formDataImage = new FormData()
+                    formDataImage.append('image', image)
+                    formDataImage.append('doubt', doubtId)
+
+                    await fetch('http://localhost:8000/api/doubts/images/', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        },
+                        body: formDataImage
+                    })
+                }
+
+                navigate('/')
+            }
         } catch (err) {
-            setError(err.response?.data?.title?.[0] || 'Failed to create doubt')
+            setError(
+                err.response?.data?.title?.[0] ||
+                err.response?.data?.detail ||
+                `Failed to ${isEditMode ? 'update' : 'create'} doubt`
+            )
         } finally {
             setLoading(false)
         }
     }
+
+    if (fetching) return (
+        <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+                <div className="w-10 h-10 border-2 border-t-violet-400 border-violet-500/20 rounded-full animate-spin" />
+                <p className="text-slate-500 text-sm">Loading doubt...</p>
+            </div>
+        </div>
+    )
 
     return (
         <div className="min-h-screen bg-gray-950 py-10 px-4">
@@ -205,13 +132,19 @@ export default function AskDoubt() {
                 {/* Header */}
                 <div className="text-center mb-8">
                     <div className="inline-flex items-center justify-center w-14 h-14 bg-violet-500/10 border border-violet-500/20 rounded-2xl mb-4">
-                        <HelpCircle className="w-7 h-7 text-violet-400" />
+                        {isEditMode
+                            ? <Pencil className="w-7 h-7 text-violet-400" />
+                            : <HelpCircle className="w-7 h-7 text-violet-400" />
+                        }
                     </div>
                     <h1 className="text-3xl font-black text-white tracking-tight">
-                        Ask a Doubt
+                        {isEditMode ? 'Edit Doubt' : 'Ask a Doubt'}
                     </h1>
                     <p className="text-slate-400 mt-2 text-sm">
-                        Be specific and descriptive to get better answers from the community
+                        {isEditMode
+                            ? 'Update your doubt with more details or corrections'
+                            : 'Be specific and descriptive to get better answers from the community'
+                        }
                     </p>
                 </div>
 
@@ -279,52 +212,71 @@ export default function AskDoubt() {
                     <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 focus-within:border-violet-500/50 transition-colors">
                         <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
                             <Image size={13} className="text-violet-400" />
-                            Attachments
+                            {isEditMode ? 'Add More Attachments' : 'Attachments'}
                         </label>
                         <ImageUploader
                             images={formData.images}
                             onImagesChange={(images) => setFormData({ ...formData, images })}
                         />
+                        {isEditMode && (
+                            <p className="text-xs text-slate-600 mt-2">
+                                Existing images are preserved. Upload here to add new ones.
+                            </p>
+                        )}
                     </div>
 
-                    {/* Submit */}
-                    <button
-                        type="submit"
-                        disabled={loading || !formData.title || !formData.content}
-                        className="w-full flex items-center justify-center gap-3 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-4 rounded-2xl text-base transition-all shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30"
-                    >
-                        {loading ? (
-                            <>
-                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                Posting your doubt...
-                            </>
-                        ) : (
-                            <>
-                                <Send className="w-5 h-5" />
-                                Post Doubt
-                            </>
+                    {/* Buttons */}
+                    <div className="flex gap-3">
+                        {isEditMode && (
+                            <button
+                                type="button"
+                                onClick={() => navigate(`/doubts/${id}`)}
+                                className="flex-1 py-4 rounded-2xl border border-gray-700 text-slate-400 hover:bg-gray-800 hover:text-white font-bold text-base transition-all"
+                            >
+                                Cancel
+                            </button>
                         )}
-                    </button>
+
+                        <button
+                            type="submit"
+                            disabled={loading || !formData.title || !formData.content}
+                            className="flex-1 flex items-center justify-center gap-3 bg-violet-600 hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-4 rounded-2xl text-base transition-all shadow-lg shadow-violet-500/20 hover:shadow-violet-500/30"
+                        >
+                            {loading ? (
+                                <>
+                                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    {isEditMode ? 'Saving changes...' : 'Posting your doubt...'}
+                                </>
+                            ) : (
+                                <>
+                                    {isEditMode ? <Pencil className="w-5 h-5" /> : <Send className="w-5 h-5" />}
+                                    {isEditMode ? 'Save Changes' : 'Post Doubt'}
+                                </>
+                            )}
+                        </button>
+                    </div>
 
                 </form>
 
                 {/* Tips */}
-                <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-5">
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">💡 Tips for a great question</p>
-                    <ul className="space-y-1.5">
-                        {[
-                            'Summarize the problem in the title',
-                            'Include relevant code or error messages',
-                            'Describe what you already tried',
-                            'Add relevant tags to reach the right people',
-                        ].map((tip, i) => (
-                            <li key={i} className="flex items-start gap-2 text-xs text-slate-500">
-                                <span className="text-violet-400 mt-0.5">→</span>
-                                {tip}
-                            </li>
-                        ))}
-                    </ul>
-                </div>
+                {!isEditMode && (
+                    <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-5">
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">💡 Tips for a great question</p>
+                        <ul className="space-y-1.5">
+                            {[
+                                'Summarize the problem in the title',
+                                'Include relevant code or error messages',
+                                'Describe what you already tried',
+                                'Add relevant tags to reach the right people',
+                            ].map((tip, i) => (
+                                <li key={i} className="flex items-start gap-2 text-xs text-slate-500">
+                                    <span className="text-violet-400 mt-0.5">→</span>
+                                    {tip}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
 
             </div>
         </div>

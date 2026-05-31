@@ -1,16 +1,12 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from typer import prompt
+from .services import generate_ai_answer
 
 from drf_yasg.utils import swagger_auto_schema
 
 from .serializers import SolveDoubtSerializer
-
-from langchain_huggingface import (
-    HuggingFaceEndpoint,
-    ChatHuggingFace
-)
-
 
 class SolveDoubtAPIView(APIView):
 
@@ -26,18 +22,12 @@ class SolveDoubtAPIView(APIView):
 
         serializer.is_valid(raise_exception=True)
 
-        prompt = serializer.validated_data['prompt']
+        doubt_title = serializer.validated_data['title']
+        doubt_content = serializer.validated_data['content']
 
-        llm = HuggingFaceEndpoint(
-            repo_id="deepseek-ai/DeepSeek-R1",
-            task="text-generation"
-        )
-
-        model = ChatHuggingFace(llm=llm)
-
-        result = model.invoke(prompt)
+        answer = generate_ai_answer(doubt_title, doubt_content)
 
         return Response({
-            "answer": result.content
+            "answer": answer
         })
         

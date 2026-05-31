@@ -93,7 +93,7 @@ class UserSerializer(serializers.ModelSerializer):
     # reputation = serializers.SerializerMethodField()
     badges = serializers.SerializerMethodField()
     
-    friendship_status = serializers.SerializerMethodField()
+    friendship_status = serializers.SerializerMethodField(default=None)
 
     class Meta:
         model = User

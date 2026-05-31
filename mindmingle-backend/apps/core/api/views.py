@@ -22,6 +22,7 @@ from drf_yasg import openapi
 from rest_framework import serializers
 
 from django.db.models import F
+from rest_framework.filters import SearchFilter
     
 
 class AuthViewSet(viewsets.ReadOnlyModelViewSet):
@@ -99,15 +100,9 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
+    filter_backends = [SearchFilter]          # add this
+    search_fields = ['username', 'first_name', 'last_name']   # add this
     
-    # To optimize database queries and reduce the number of queries made when retrieving user data,
-    # we can use the select_related method to fetch related profile 
-    # information in a single query. This will improve the performance
-    # of our API endpoints that return user data along with their profiles.
-    # exclude the authenticated user from the queryset to prevent them from seeing their own profile in the list of users.
-    # This is done by filtering out the user with the same ID as the authenticated user.
-    # Working : GET all users except self
-    # api: GET /api/users/ - to get a list of all users (excluding the authenticated user)
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return User.objects.none()
@@ -128,25 +123,8 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     
     @action(detail=False, methods=['get'])
     def me(self, request, pk=None):
-        #Get current authenticated user's profile
-        #context is used to pass additional information to the serializer, in this case, the request object. This allows the serializer to access the authenticated user and determine if they are following the user being serialized.
         serializer = self.get_serializer(request.user, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
-        
-        
-    
-    # @action(detail=False, methods=['put'])
-    # def update_profile(self, request):
-    #     user = request.user
-    #     profile = user.profile
-
-    #     serializer = ProfileSerializer(profile, data=request.data, partial=True)
-
-    #     if serializer.is_valid():
-    #         serializer.save()
-    #         return Response(serializer.data, status=status.HTTP_200_OK)
-
-    #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     @action(detail=False, methods=['put'])
     def update_profile(self, request):
@@ -174,159 +152,6 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         })   
 
 
-# class FriendshipViewSet(viewsets.ModelViewSet):
-#     serializer_class = FriendshipSerializer
-#     permission_classes = [IsAuthenticated]
-
-#     def get_queryset(self):
-#         if getattr(self, 'swagger_fake_view', False):
-#             return Friendship.objects.none()
-        
-#         return Friendship.objects.filter(
-#             Q(from_user=self.request.user) | Q(to_user=self.request.user)
-#         ).select_related('from_user', 'to_user')
-
-#     def perform_create(self, serializer):
-#         to_username = self.request.data.get('to_user')
-#         to_user = get_object_or_404(User, username=to_username)
-
-#         if to_user == self.request.user:
-#             raise serializers.ValidationError({'to_user': 'Cannot follow yourself.'})
-
-#         # Prevent duplicate friendship
-#         if Friendship.objects.filter(from_user=self.request.user, to_user=to_user).exists():
-#             raise serializers.ValidationError({'to_user': 'Follow request already exists.'})
-
-#         # Public user: auto-accept
-#         if not to_user.is_private:
-#             friendship = serializer.save(
-#                 from_user=self.request.user,
-#                 to_user=to_user,
-#                 status='accepted'
-#             )
-#             # Update counters immediately
-#             User.objects.filter(id=self.request.user.id).update(following_count=F('following_count') + 1)
-#             User.objects.filter(id=to_user.id).update(followers_count=F('followers_count') + 1)
-#         else:
-#             # Private user: pending request
-#             serializer.save(from_user=self.request.user, to_user=to_user, status='pending')
-
-#     @action(detail=True, methods=['post'])
-#     def accept(self, request, pk=None):
-#         friendship = self.get_object()
-
-#         # Only private users can accept
-#         if not friendship.to_user.is_private:
-#             return Response(
-#                 {"error": "Cannot accept follow for a public user."},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
-
-#         if friendship.to_user != request.user:
-#             return Response({'error': 'Cannot accept other user requests'}, status=status.HTTP_403_FORBIDDEN)
-
-#         friendship.accept()
-#         serializer = self.get_serializer(friendship)
-#         return Response(serializer.data)
-
-#     @action(detail=True, methods=['post'])
-#     def reject(self, request, pk=None):
-#         friendship = self.get_object()
-
-#         # Only private users can reject
-#         if not friendship.to_user.is_private:
-#             return Response(
-#                 {"error": "Cannot reject request for a public user."},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
-
-#         if friendship.to_user != request.user:
-#             return Response({'error': 'Cannot reject other user requests'}, status=status.HTTP_403_FORBIDDEN)
-
-#         friendship.reject()
-#         serializer = self.get_serializer(friendship)
-#         return Response(serializer.data)
-    
-#     @action(detail=False, methods=['get'])
-#     def sent_requests(self, request):
-
-#         queryset = Friendship.objects.filter(
-#             from_user=request.user,
-#             status='pending'
-#         ).select_related('to_user')
-
-#         serializer = self.get_serializer(queryset, many=True)
-#         return Response(serializer.data)
-    
-#     @action(detail=False, methods=['get'])
-#     def received_requests(self, request):
-
-#         queryset = Friendship.objects.filter(
-#             to_user=request.user,
-#             status='pending'
-#         ).select_related('from_user')
-
-#         serializer = self.get_serializer(queryset, many=True)
-#         return Response(serializer.data)
-    
-#     @action(detail=False, methods=['get'])
-#     def followers(self, request):
-
-#         queryset = Friendship.objects.filter(
-#             to_user=request.user,
-#             status='accepted'
-#         ).select_related('from_user')
-
-#         serializer = self.get_serializer(queryset, many=True)
-#         return Response(serializer.data)
-    
-#     @action(detail=False, methods=['get'])
-#     def following(self, request):
-
-#         queryset = Friendship.objects.filter(
-#             from_user=request.user,
-#             status='accepted'
-#         ).select_related('to_user')
-
-#         serializer = self.get_serializer(queryset, many=True)
-#         return Response(serializer.data)
-        
-#     def destroy(self, request, *args, **kwargs):
-#         """
-#         Remove a friendship. Either follower or followed can delete.
-#         """
-#         instance = self.get_object()
-
-#         # Only allow involved users
-#         if request.user != instance.from_user and request.user != instance.to_user:
-#             return Response(
-#                 {"error": "You can only remove friendships involving yourself."},
-#                 status=status.HTTP_403_FORBIDDEN
-#             )
-
-#         if instance.status == 'accepted':
-#             if request.user == instance.from_user:
-#                 # Follower removes the followed
-#                 User.objects.filter(id=instance.from_user.id).update(
-#                     following_count=F('following_count') - 1
-#                 )
-#                 User.objects.filter(id=instance.to_user.id).update(
-#                     followers_count=F('followers_count') - 1
-#                 )
-#             else:
-#                 # Followed removes a follower
-#                 User.objects.filter(id=instance.to_user.id).update(
-#                     following_count=F('following_count') - 1
-#                 )
-#                 User.objects.filter(id=instance.from_user.id).update(
-#                     followers_count=F('followers_count') - 1
-#                 )
-
-#         # Delete the friendship row
-#         instance.delete()
-#         return Response(status=status.HTTP_204_NO_CONTENT) 
-
-
 # =========================================================
 # VIEWSET
 # =========================================================
@@ -341,17 +166,20 @@ class FriendshipViewSet(viewsets.ModelViewSet):
     # =====================================================
 
     def get_queryset(self):
+            if getattr(self, 'swagger_fake_view', False):
+                return Friendship.objects.none()
 
-        if getattr(self, 'swagger_fake_view', False):
-            return Friendship.objects.none()
+        # for accept/reject/destroy — user needs to see records they're involved in
+            if self.action in ['accept', 'reject', 'destroy', 'retrieve']:
+                return Friendship.objects.filter(
+                    Q(from_user=self.request.user) |
+                    Q(to_user=self.request.user)
+                ).select_related('from_user', 'to_user')
 
-        return Friendship.objects.filter(
-            Q(from_user=self.request.user) |
-            Q(to_user=self.request.user)
-        ).select_related(
-            'from_user',
-            'to_user'
-        )
+            # for list — only show what I sent (instagram style)
+            return Friendship.objects.filter(
+                from_user=self.request.user
+            ).select_related('from_user', 'to_user')
 
     # =====================================================
     # CREATE FOLLOW REQUEST
@@ -375,16 +203,6 @@ class FriendshipViewSet(viewsets.ModelViewSet):
         if to_user == self.request.user:
             raise serializers.ValidationError({
                 'to_user': 'Cannot follow yourself.'
-            })
-
-        # Prevent duplicate follow
-        if Friendship.objects.filter(
-            from_user=self.request.user,
-            to_user=to_user
-        ).exists():
-
-            raise serializers.ValidationError({
-                'to_user': 'Follow request already exists.'
             })
 
         # PUBLIC ACCOUNT
@@ -581,13 +399,6 @@ class FriendshipViewSet(viewsets.ModelViewSet):
             to_user=target_user
         ).first()
 
-        if not friendship:
-
-            friendship = Friendship.objects.filter(
-                from_user=target_user,
-                to_user=request.user
-            ).first()
-
         if friendship:
 
             serializer = self.get_serializer(friendship)
@@ -612,8 +423,7 @@ class FriendshipViewSet(viewsets.ModelViewSet):
 
         # Security check
         if (
-            request.user != instance.from_user and
-            request.user != instance.to_user
+            request.user != instance.from_user
         ):
             return Response(
                 {
@@ -641,7 +451,7 @@ class FriendshipViewSet(viewsets.ModelViewSet):
 
         return Response(
             {
-                "message": "Friendship removed successfully"
+                "message": "Unfollowed successfully"
             },
             status=status.HTTP_204_NO_CONTENT
         )

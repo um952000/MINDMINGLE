@@ -13,6 +13,9 @@ from .serializers import (
 from django.db.models import F
 from .permissions import IsOwnerOrReadOnly
 
+from rest_framework.filters import SearchFilter
+
+
 User = get_user_model()
 
 
@@ -27,6 +30,8 @@ class DoubtViewSet(viewsets.ModelViewSet):
     serializer_class = DoubtSerializer
     permission_classes = [IsAuthenticatedOrReadOnly, IsOwnerOrReadOnly]
     pagination_class = StandardPagination
+    filter_backends = [SearchFilter]
+    search_fields = ['title', 'content']
 
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):

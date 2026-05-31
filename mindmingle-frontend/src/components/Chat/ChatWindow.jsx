@@ -24,17 +24,21 @@ const isSameDay = (a, b) => {
     return new Date(a).toDateString() === new Date(b).toDateString()
 }
 
-export default function ChatWindow({ conversation }) {
+export default function ChatWindow({ conversation, messages, setMessages }) {
 
-    const [messages, setMessages] = useState([])
+    // const [messages, setMessages] = useState([])
     const [visibleDate, setVisibleDate] = useState('')
+
+    const [editingMessage, setEditingMessage] = useState(null)
+
     const socketRef = useRef(null)
     const scrollRef = useRef(null)
     const messageRefs = useRef({})
 
     useEffect(() => {
         if (conversation) {
-            fetchMessages()
+            setMessages([])          // ✅ clear stale messages first
+            fetchMessages()          // ✅ fetch fresh — respects cleared_at on backend
             connectWebSocket()
         }
         return () => {
@@ -188,18 +192,56 @@ export default function ChatWindow({ conversation }) {
                                     </span>
                                 </div>
                             )}
-                            <MessageBubble message={message} />
+                            <MessageBubble
+                                message={message}
+                                onEdit={(msg) => setEditingMessage(msg)}
+                                onDelete={async (msg) => {
+                                    try {
+                                        await chatAPI.deleteMessage(
+                                            conversation.id,
+                                            msg.id
+                                        )
+
+                                        setMessages(prev =>
+                                            prev.filter(m => m.id !== msg.id)
+                                        )
+                                    } catch (err) {
+                                        console.error(err)
+                                    }
+                                }}
+                            />
                         </div>
                     )
                 })}
             </div>
 
             {/* INPUT */}
-            <MessageInput
+            {/* <MessageInput
                 onSend={handleSendMessage}
                 conversationId={conversation.id}  // ✅ add this
                 socketRef={socketRef}
+                editingMessage={editingMessage}
+                setEditingMessage={setEditingMessage}
+            /> */}
+
+            <MessageInput
+                onSend={handleSendMessage}
+                conversationId={conversation.id}
+                socketRef={socketRef}
+                editingMessage={editingMessage}
+                setEditingMessage={setEditingMessage}
+                onMessageUpdated={(updatedMessage) => {
+                    setMessages(prev =>
+                        prev.map(msg =>
+                            msg.id === updatedMessage.id
+                                ? updatedMessage
+                                : msg
+                        )
+                    )
+                }}
             />
         </div>
     )
 }
+
+

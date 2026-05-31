@@ -44,6 +44,8 @@ export const doubtAPI = {
     upvoteDoubt: (id) => apiClient.post(`/doubts/doubts/${id}/upvote/`),
     downvoteDoubt: (id) => apiClient.post(`/doubts/doubts/${id}/downvote/`),
     reactDoubt: (id, reaction) => apiClient.post(`/doubts/doubts/${id}/react/`, { reaction_type: reaction }),
+    deleteDoubt: (id) => apiClient.delete(`/doubts/doubts/${id}/`),
+    updateDoubt: (id, data) => apiClient.put(`/doubts/doubts/${id}/`, data),
 }
 
 // Answer APIs
@@ -117,6 +119,9 @@ export const authAPI = {
     register: (data) => apiClient.post('/core/register/', data),
     getProfile: (id) => apiClient.get(`/core/users/${id}/`),
     updateProfile: (data) => apiClient.put('/core/users/update_profile/', data),
+    getAllUsers: (search = '') => apiClient.get('/core/users/', { params: search ? { search } : {} }),
+    getUsersByUrl: (url) => apiClient.get(url),
+    togglePrivacy: () => apiClient.post('/core/users/toggle_privacy/'),
 }
 
 export const gamificationAPI = {
@@ -157,12 +162,19 @@ export const friendshipAPI = {
     // =========================
     // SEND FOLLOW REQUEST
     // =========================
-    sendRequest: (toUserId, fromUserId) =>
+    // sendRequest: (toUserId, fromUserId) =>
+    //     apiClient.post('/core/friendships/', {
+    //         from_user: fromUserId,
+    //         to_user: toUserId,
+    //         status: 'pending'
+    //     }),
+
+    sendRequest: (toUserId) =>
         apiClient.post('/core/friendships/', {
-            from_user: fromUserId,
-            to_user: toUserId,
-            status: 'pending'
+            to_user: toUserId
         }),
+
+    getRelation: (userId) => apiClient.get(`/core/friendships/relation/?user_id=${userId}`),
 
     // =========================
     // ACCEPT REQUEST
@@ -223,9 +235,10 @@ export const friendshipAPI = {
 // AI APIs
 export const aiAPI = {
 
-    solveDoubt: (prompt) =>
+    solveDoubt: (doubtData) =>
         apiClient.post('/ai/solve-doubt/', {
-            prompt
+            title: doubtData.doubt_title,
+            content: doubtData.doubt_content
         }),
 }
 export const chatAPI = {
@@ -246,6 +259,21 @@ export const chatAPI = {
             `/chat/conversations/${conversationId}/messages/`,
             data
         ),
+
+    deleteMessage: (conversationId, messageId) =>
+        api.delete(`/chat/conversations/${conversationId}/messages/${messageId}/`),
+
+
+    editMessage: (conversationId, messageId, newContent) =>
+        api.put(`/chat/conversations/${conversationId}/messages/${messageId}/`, {
+            content: newContent
+        }),
+
+    clearConversation: (conversationId) =>
+        api.delete(`/chat/conversations/${conversationId}/clear/`),
+
+    deleteConversation: (conversationId) =>
+        api.delete(`/chat/conversations/${conversationId}/`),
 
     // ✅ new — upload media file
     uploadFile: (conversationId, file, messageType) => {

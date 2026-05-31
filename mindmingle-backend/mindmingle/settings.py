@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     'apps.notifications',
     'apps.ai',
     'apps.chat',
+    'apps.mentors',
     
     'cloudinary_storage',   # ✅ add before django.contrib.staticfiles
     'cloudinary',           # ✅ add after

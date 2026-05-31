@@ -6,7 +6,7 @@ import {
     MapPin, GraduationCap, Globe, Github, Linkedin,
     Twitter, Edit3, Users, MessageCircle, Award,
     Flame, Star, Calendar, CheckCircle, HelpCircle,
-    Zap, ExternalLink
+    Zap, ExternalLink, Lock
 } from 'lucide-react'
 
 const LEVEL_CONFIG = {
@@ -35,7 +35,17 @@ export default function Profile() {
     const [requestStatus, setRequestStatus] = useState(null)
     const [followLoading, setFollowLoading] = useState(false)
 
+    const [privacyLoading, setPrivacyLoading] = useState(false)
+
+
+
     const isOwnProfile = authUser?.id === parseInt(id) || authUser?.user_id === parseInt(id)
+
+    // derive this once after user loads
+    const isPrivate = user?.is_private
+    const isFollower = isFollowing || isOwnProfile  // own profile always sees everything
+    const canViewFullProfile = !isPrivate || isFollower
+    const canMessage = isOwnProfile || requestStatus === 'accepted'
 
     useEffect(() => {
 
@@ -48,13 +58,15 @@ export default function Profile() {
                     levelRes,
                     badgesRes,
                     doubtRes,
-                    answersRes
+                    answersRes,
+                    relationRes        // add this
                 ] = await Promise.all([
                     authAPI.getProfile(id),
                     gamificationAPI.getMyLevel(),
                     gamificationAPI.getUserBadges(id),
                     doubtAPI.getUserDoubts(id),
                     answerAPI.getAnswersByAuthor(id),
+                    friendshipAPI.getRelation(id),   // add this
                 ])
 
                 setUser(userRes.data)
@@ -63,27 +75,19 @@ export default function Profile() {
                 setUserDoubt(doubtRes.data.results)
                 setUserAnswers(answersRes.data.results)
 
-                // =========================
-                // CHECK FRIENDSHIP STATUS
-                // =========================
+                // ✅ clean direction-aware logic using dedicated endpoint
+                const relation = relationRes.data
 
-                const friendships = await friendshipAPI.getAll()
+                if (relation.exists) {
+                    const f = relation.friendship
+                    setFriendshipId(f.id)
 
-                const relation = friendships.data.results.find(
-                    (f) =>
-                        (f.from_user === authUser?.username &&
-                            f.to_user === userRes.data.username) ||
-                        (f.to_user === authUser?.username &&
-                            f.from_user === userRes.data.username)
-                )
-
-                if (relation) {
-
-                    setFriendshipId(relation.id)
-                    setRequestStatus(relation.status)
-
-                    if (relation.status === 'accepted') {
+                    if (f.status === 'accepted') {
                         setIsFollowing(true)
+                        setRequestStatus('accepted')
+                    } else if (f.status === 'pending') {
+                        // I sent a request, waiting for acceptance
+                        setRequestStatus('pending')
                     }
                 }
 
@@ -135,29 +139,60 @@ export default function Profile() {
         { id: 'badges', label: 'Badges', icon: <Award size={14} /> },
     ]
 
+    // const handleFollowAction = async () => {
+
+    //     try {
+
+    //         setFollowLoading(true)
+
+    //         // =========================
+    //         // UNFOLLOW
+    //         // =========================
+    //         if (isFollowing && friendshipId) {
+
+    //             await friendshipAPI.removeFriendship(friendshipId)
+
+    //             setIsFollowing(false)
+    //             setFriendshipId(null)
+    //             setRequestStatus(null)
+
+    //             return
+    //         }
+
+    //         // =========================
+    //         // SEND REQUEST
+    //         // =========================
+    //         const res = await friendshipAPI.sendRequest(user.id, authUser.id)
+
+    //         setFriendshipId(res.data.id)
+    //         setRequestStatus(res.data.status)
+
+    //         if (res.data.status === 'accepted') {
+    //             setIsFollowing(true)
+    //         }
+
+    //     } catch (err) {
+    //         console.error(err)
+    //     } finally {
+    //         setFollowLoading(false)
+    //     }
+    // }
+
     const handleFollowAction = async () => {
-
         try {
-
             setFollowLoading(true)
 
-            // =========================
-            // UNFOLLOW
-            // =========================
-            if (isFollowing && friendshipId) {
-
+            // cancel pending request OR unfollow accepted relation
+            if (friendshipId && (isFollowing || requestStatus === 'pending')) {
                 await friendshipAPI.removeFriendship(friendshipId)
 
                 setIsFollowing(false)
                 setFriendshipId(null)
                 setRequestStatus(null)
-
                 return
             }
 
-            // =========================
-            // SEND REQUEST
-            // =========================
+            // send fresh request
             const res = await friendshipAPI.sendRequest(user.id, authUser.id)
 
             setFriendshipId(res.data.id)
@@ -166,19 +201,36 @@ export default function Profile() {
             if (res.data.status === 'accepted') {
                 setIsFollowing(true)
             }
-
         } catch (err) {
             console.error(err)
         } finally {
             setFollowLoading(false)
         }
     }
+    // const handleMessageUser = async () => {
 
+    //     try {
+
+    //         const res = await chatAPI.createConversation({
+    //             user_id: user.id
+    //         })
+
+    //         navigate('/chat', {
+    //             state: {
+    //                 selectedConversation: res.data
+    //             }
+    //         })
+
+    //     } catch (error) {
+
+    //         console.error(error.response?.data || error)
+    //     }
+    // }
 
     const handleMessageUser = async () => {
+        if (!canMessage) return
 
         try {
-
             const res = await chatAPI.createConversation({
                 user_id: user.id
             })
@@ -188,10 +240,27 @@ export default function Profile() {
                     selectedConversation: res.data
                 }
             })
-
         } catch (error) {
-
             console.error(error.response?.data || error)
+        }
+    }
+
+    const handleTogglePrivacy = async () => {
+        if (!isOwnProfile) return
+
+        try {
+            setPrivacyLoading(true)
+
+            const res = await authAPI.togglePrivacy()
+
+            setUser(prev => ({
+                ...prev,
+                is_private: res.data.is_private
+            }))
+        } catch (err) {
+            console.error(err)
+        } finally {
+            setPrivacyLoading(false)
         }
     }
 
@@ -221,19 +290,24 @@ export default function Profile() {
             <div className="max-w-3xl mx-auto px-4">
 
                 {/* Avatar + Actions */}
-                <div className="flex items-end justify-between -mt-14 mb-5 flex-wrap gap-3">
+                {/* <div className="flex items-end justify-between -mt-14 mb-5 flex-wrap gap-3"> */}
+                <div className="flex flex-col md:flex-row md:items-end md:justify-between -mt-14 mb-5 gap-4">
                     {/* Avatar */}
                     <div className="relative">
-                        <div className={`p-0.5 rounded-full bg-gradient-to-br from-violet-500 to-blue-500`}>
+                        <div className="p-0.5 rounded-full bg-gradient-to-br from-violet-500 to-blue-500">
                             <div className="w-24 h-24 rounded-full bg-gray-900 border-4 border-gray-950 flex items-center justify-center text-3xl font-black text-violet-400 overflow-hidden">
-                                {user.avatar
-                                    ? <img src={user.avatar.startsWith('http') ? user.avatar : `http://127.0.0.1:8000${user.avatar}`}
-                                        alt="" className="w-full h-full object-cover" />
-                                    : user.username?.[0]?.toUpperCase()
-                                }
+                                {user.avatar ? (
+                                    <img
+                                        src={user.avatar.startsWith('http') ? user.avatar : `http://127.0.0.1:8000${user.avatar}`}
+                                        alt=""
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    user.username?.[0]?.toUpperCase()
+                                )}
                             </div>
                         </div>
-                        {/* Level badge */}
+
                         <div className={`absolute -bottom-1 -right-1 flex items-center gap-1 ${level.bg} ${level.border} border rounded-full px-2 py-0.5`}>
                             <span className="text-xs">{level.emoji}</span>
                             <span className={`text-xs font-bold ${level.color}`}>{user?.level || 'Beginner'}</span>
@@ -241,14 +315,34 @@ export default function Profile() {
                     </div>
 
                     {/* Buttons */}
-                    <div className="flex gap-2 pb-2">
+                    <div className="flex flex-wrap gap-2 w-full md:w-auto md:justify-end">
                         {isOwnProfile ? (
-                            <button
-                                onClick={() => navigate('/edit-profile')}
-                                className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all"
-                            >
-                                <Edit3 size={14} /> Edit Profile
-                            </button>
+                            <>
+                                <button
+                                    onClick={() => navigate('/edit-profile')}
+                                    className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+                                >
+                                    <Edit3 size={14} /> Edit Profile
+                                </button>
+
+                                <button
+                                    onClick={handleTogglePrivacy}
+                                    disabled={privacyLoading}
+                                    className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+                                >
+                                    {user?.is_private ? (
+                                        <>
+                                            <Lock size={14} />
+                                            Private Account
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Globe size={14} />
+                                            Public Account
+                                        </>
+                                    )}
+                                </button>
+                            </>
                         ) : (
                             <>
                                 <button
@@ -260,22 +354,25 @@ export default function Profile() {
                                         }`}
                                 >
                                     <Users size={14} />
-                                    {
-                                        followLoading
-                                            ? 'Please wait...'
-                                            : isFollowing
-                                                ? 'Following'
-                                                : requestStatus === 'pending'
-                                                    ? 'Requested'
-                                                    : 'Follow'
-                                    }
+                                    {followLoading
+                                        ? 'Please wait...'
+                                        : isFollowing
+                                            ? 'Following'
+                                            : requestStatus === 'pending'
+                                                ? 'Cancel Request'
+                                                : 'Follow'}
                                 </button>
+
                                 <button
                                     onClick={handleMessageUser}
-                                    className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-slate-300 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+                                    disabled={!canMessage}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${canMessage
+                                        ? 'bg-gray-800 hover:bg-gray-700 border border-gray-700 text-slate-300'
+                                        : 'bg-gray-900 border border-gray-800 text-slate-600 cursor-not-allowed opacity-60'
+                                        }`}
                                 >
                                     <MessageCircle size={14} />
-                                    Message
+                                    {requestStatus === 'pending' ? 'Waiting for acceptance' : 'Message'}
                                 </button>
                             </>
                         )}
@@ -353,21 +450,24 @@ export default function Profile() {
                             <span className="text-slate-500 ml-1">Following</span>
                         </button>
                     </div>
+
                 </div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-3 gap-3 mb-5">
-                    {stats.map((stat, i) => (
-                        <div key={i} className="bg-gray-900 border border-gray-800 rounded-2xl p-4 text-center hover:border-violet-500/30 transition-all">
-                            <div className={`flex justify-center mb-2 ${stat.color}`}>{stat.icon}</div>
-                            <div className="text-xl font-black text-white">{stat.value}</div>
-                            <div className="text-xs text-slate-500 mt-0.5 font-medium">{stat.label}</div>
-                        </div>
-                    ))}
-                </div>
+                {canViewFullProfile && (
+                    <div className="grid grid-cols-3 gap-3 mb-5">
+                        {stats.map((stat, i) => (
+                            <div key={i} className="bg-gray-900 border border-gray-800 rounded-2xl p-4 text-center hover:border-violet-500/30 transition-all">
+                                <div className={`flex justify-center mb-2 ${stat.color}`}>{stat.icon}</div>
+                                <div className="text-xl font-black text-white">{stat.value}</div>
+                                <div className="text-xs text-slate-500 mt-0.5 font-medium">{stat.label}</div>
+                            </div>
+                        ))}
+                    </div>
+                )}
 
                 {/* Streak Banner */}
-                {(userLevel?.streak_days || 0) >= 3 && (
+                {canViewFullProfile && (userLevel?.streak_days || 0) >= 3 && (
                     <div className="bg-gradient-to-r from-orange-950/50 to-yellow-950/50 border border-orange-500/20 rounded-2xl p-4 mb-5 flex items-center gap-4">
                         <div className="text-4xl">🔥</div>
                         <div className="flex-1">
@@ -381,7 +481,7 @@ export default function Profile() {
                 )}
 
                 {/* Skills */}
-                {user.skills?.length > 0 && (
+                {canViewFullProfile && user.skills?.length > 0 && (
                     <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 mb-5">
                         <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
                             <Zap size={13} className="text-violet-400" /> Skills
@@ -396,243 +496,279 @@ export default function Profile() {
                     </div>
                 )}
 
-                {/* Tabs */}
-                {/* Tabs */}
-                <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden mb-5">
-                    <div className="flex border-b border-gray-800">
-                        {tabs.map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
-                                className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-xs font-bold uppercase tracking-wider transition-all ${activeTab === tab.id
-                                    ? 'text-violet-400 border-b-2 border-violet-500 bg-violet-500/5'
-                                    : 'text-slate-600 hover:text-slate-400'
-                                    }`}
-                            >
-                                {tab.icon} {tab.label}
-                            </button>
-                        ))}
-                    </div>
 
-                    {/* Scrollable Content Wrapper */}
-                    <div className="p-4 h-[360px] overflow-hidden">
-                        {/* Doubts Tab */}
-                        {activeTab === 'doubts' && (
-                            <div>
-                                {userDoubt?.length > 0 ? (
-                                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-                                        {userDoubt.map((doubt) => (
-                                            <div
-                                                key={doubt.id}
-                                                onClick={() =>
-                                                    navigate(`/doubts/${doubt.id}`, {
-                                                        state: { from: `/profile/${id}` }
-                                                    })
-                                                }
-                                                className="bg-slate-800/70 hover:bg-slate-800 border border-slate-700 hover:border-violet-500/40 rounded-xl p-4 transition-all cursor-pointer"
-                                            >
-                                                {/* Top Row */}
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <div className="flex-1">
-                                                        <h3 className="text-sm font-semibold text-white line-clamp-1">
-                                                            {doubt.title}
-                                                        </h3>
+                {/* Tabs */}
+                {canViewFullProfile ? (
+                    <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden mb-5">
+                        <div className="flex border-b border-gray-800">
+                            {tabs.map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-xs font-bold uppercase tracking-wider transition-all ${activeTab === tab.id
+                                        ? 'text-violet-400 border-b-2 border-violet-500 bg-violet-500/5'
+                                        : 'text-slate-600 hover:text-slate-400'
+                                        }`}
+                                >
+                                    {tab.icon} {tab.label}
+                                </button>
+                            ))}
+                        </div>
 
-                                                        <p className="text-xs text-slate-400 mt-1 line-clamp-2">
-                                                            {doubt.content}
-                                                        </p>
+                        {/* Scrollable Content Wrapper */}
+                        <div className="p-4 h-[360px] overflow-hidden">
+                            {/* Doubts Tab */}
+                            {activeTab === 'doubts' && (
+                                <div>
+                                    {userDoubt?.length > 0 ? (
+                                        <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                                            {userDoubt.map((doubt) => (
+                                                <div
+                                                    key={doubt.id}
+                                                    onClick={() =>
+                                                        navigate(`/doubts/${doubt.id}`, {
+                                                            state: { from: `/profile/${id}` }
+                                                        })
+                                                    }
+                                                    className="bg-slate-800/70 hover:bg-slate-800 border border-slate-700 hover:border-violet-500/40 rounded-xl p-4 transition-all cursor-pointer"
+                                                >
+                                                    {/* Top Row */}
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="flex-1">
+                                                            <h3 className="text-sm font-semibold text-white line-clamp-1">
+                                                                {doubt.title}
+                                                            </h3>
+
+                                                            <p className="text-xs text-slate-400 mt-1 line-clamp-2">
+                                                                {doubt.content}
+                                                            </p>
+                                                        </div>
+
+                                                        {doubt.is_resolved && (
+                                                            <div className="flex items-center gap-1 text-green-400 text-[10px] font-bold bg-green-400/10 border border-green-400/20 px-2 py-1 rounded-full whitespace-nowrap">
+                                                                <CheckCircle size={12} />
+                                                                Solved
+                                                            </div>
+                                                        )}
                                                     </div>
 
-                                                    {doubt.is_resolved && (
-                                                        <div className="flex items-center gap-1 text-green-400 text-[10px] font-bold bg-green-400/10 border border-green-400/20 px-2 py-1 rounded-full whitespace-nowrap">
-                                                            <CheckCircle size={12} />
-                                                            Solved
+                                                    {/* Tags */}
+                                                    {doubt.tags?.length > 0 && (
+                                                        <div className="flex flex-wrap gap-2 mt-3">
+                                                            {doubt.tags.slice(0, 4).map((tag, idx) => (
+                                                                <span
+                                                                    key={idx}
+                                                                    className="text-[10px] px-2 py-1 rounded-full bg-violet-500/10 text-violet-300 border border-violet-500/20"
+                                                                >
+                                                                    #{tag.name || tag}
+                                                                </span>
+                                                            ))}
                                                         </div>
                                                     )}
-                                                </div>
 
-                                                {/* Tags */}
-                                                {doubt.tags?.length > 0 && (
-                                                    <div className="flex flex-wrap gap-2 mt-3">
-                                                        {doubt.tags.slice(0, 4).map((tag, idx) => (
-                                                            <span
-                                                                key={idx}
-                                                                className="text-[10px] px-2 py-1 rounded-full bg-violet-500/10 text-violet-300 border border-violet-500/20"
-                                                            >
-                                                                #{tag.name || tag}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                )}
+                                                    {/* Bottom Stats */}
+                                                    <div className="flex items-center justify-between mt-4 text-[11px] text-slate-500">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="flex items-center gap-1">
+                                                                ⬆️
+                                                                <span>{doubt.upvotes_count}</span>
+                                                            </div>
 
-                                                {/* Bottom Stats */}
-                                                <div className="flex items-center justify-between mt-4 text-[11px] text-slate-500">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="flex items-center gap-1">
-                                                            ⬆️
-                                                            <span>{doubt.upvotes_count}</span>
+                                                            <div className="flex items-center gap-1">
+                                                                💬
+                                                                <span>{doubt.answers_count}</span>
+                                                            </div>
+
+                                                            <div className="flex items-center gap-1">
+                                                                👁️
+                                                                <span>{doubt.views_count}</span>
+                                                            </div>
                                                         </div>
 
-                                                        <div className="flex items-center gap-1">
-                                                            💬
-                                                            <span>{doubt.answers_count}</span>
+                                                        <div>
+                                                            {new Date(doubt.created_at).toLocaleDateString(
+                                                                'en-US',
+                                                                {
+                                                                    day: 'numeric',
+                                                                    month: 'short',
+                                                                }
+                                                            )}
                                                         </div>
-
-                                                        <div className="flex items-center gap-1">
-                                                            👁️
-                                                            <span>{doubt.views_count}</span>
-                                                        </div>
-                                                    </div>
-
-                                                    <div>
-                                                        {new Date(doubt.created_at).toLocaleDateString(
-                                                            'en-US',
-                                                            {
-                                                                day: 'numeric',
-                                                                month: 'short',
-                                                            }
-                                                        )}
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-10">
-                                        <div className="text-4xl mb-3">📚</div>
-
-                                        <div className="text-slate-500 text-sm">
-                                            No doubts asked yet
+                                            ))}
                                         </div>
-
-                                        {isOwnProfile && (
-                                            <Link
-                                                to="/ask"
-                                                className="inline-block mt-3 text-violet-400 text-xs font-semibold hover:text-violet-300"
-                                            >
-                                                Ask your first doubt →
-                                            </Link>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Answers Tab */}
-                        {activeTab === 'answers' && (
-                            <div className="max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-                                <div className="space-y-3">
-
-                                    {userAnswers?.length > 0 ? (
-                                        userAnswers.map((answer) => (
-                                            <div
-                                                key={answer.id}
-                                                onClick={() =>
-                                                    navigate(`/doubts/${answer.doubt}#answer-${answer.id}`, {
-                                                        state: { from: `/profile/${id}` }
-                                                    })
-                                                }
-                                                className="bg-slate-800/70 border border-slate-700 rounded-xl p-4 hover:border-slate-600 transition -poincursorter"
-                                            >
-
-                                                {/* Doubt Title */}
-                                                <div className="text-sm font-semibold text-white mb-2">
-                                                    Doubt Title : {answer.doubt_title}
-                                                </div>
-
-                                                {/* Answer Content */}
-                                                <p className="text-xs text-slate-300 line-clamp-3">
-                                                    {answer.content}
-                                                </p>
-
-                                                {/* Footer */}
-                                                <div className="flex items-center justify-between mt-4 text-[11px] text-slate-500">
-
-                                                    <div className="flex items-center gap-3">
-
-                                                        <span>
-                                                            ⬆️ {answer.upvotes_count || 0}
-                                                        </span>
-
-                                                        {answer.is_accepted && (
-                                                            <span className="text-emerald-400 font-medium">
-                                                                ✅ Accepted
-                                                            </span>
-                                                        )}
-
-                                                    </div>
-
-                                                    <span>
-                                                        {new Date(answer.created_at).toLocaleDateString(
-                                                            'en-IN',
-                                                            {
-                                                                day: 'numeric',
-                                                                month: 'short',
-                                                            }
-                                                        )}
-                                                    </span>
-
-                                                </div>
-                                            </div>
-                                        ))
                                     ) : (
-                                        <div className="text-center py-10 text-slate-500 text-sm">
-                                            No answers yet
+                                        <div className="text-center py-10">
+                                            <div className="text-4xl mb-3">📚</div>
+
+                                            <div className="text-slate-500 text-sm">
+                                                No doubts asked yet
+                                            </div>
+
+                                            {isOwnProfile && (
+                                                <Link
+                                                    to="/ask"
+                                                    className="inline-block mt-3 text-violet-400 text-xs font-semibold hover:text-violet-300"
+                                                >
+                                                    Ask your first doubt →
+                                                </Link>
+                                            )}
                                         </div>
                                     )}
-
                                 </div>
-                            </div>
-                        )}
-                        {/* Badges Tab */}
-                        {activeTab === 'badges' && (
-                            <>
-                                {user?.badges?.length > 0 ? (
-                                    <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
-                                        {user.badges.map((ub, i) => (
-                                            <div
-                                                key={i}
-                                                className="flex items-center gap-3 bg-slate-800 border border-slate-700 rounded-xl p-3"
-                                            >
-                                                <span className="text-2xl">
-                                                    {ub.icon || '🏅'}
-                                                </span>
+                            )}
 
-                                                <div>
-                                                    <div className="text-xs font-bold text-white">
-                                                        {ub.name}
+                            {/* Answers Tab */}
+                            {activeTab === 'answers' && (
+                                <div className="max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                                    <div className="space-y-3">
+
+                                        {userAnswers?.length > 0 ? (
+                                            userAnswers.map((answer) => (
+                                                <div
+                                                    key={answer.id}
+                                                    onClick={() =>
+                                                        navigate(`/doubts/${answer.doubt}#answer-${answer.id}`, {
+                                                            state: { from: `/profile/${id}` }
+                                                        })
+                                                    }
+                                                    className="bg-slate-800/70 border border-slate-700 rounded-xl p-4 hover:border-slate-600 transition -poincursorter"
+                                                >
+
+                                                    {/* Doubt Title */}
+                                                    <div className="text-sm font-semibold text-white mb-2">
+                                                        Doubt Title : {answer.doubt_title}
                                                     </div>
 
-                                                    <div className="text-xs text-slate-400">
-                                                        {ub.description}
-                                                    </div>
+                                                    {/* Answer Content */}
+                                                    <p className="text-xs text-slate-300 line-clamp-3">
+                                                        {answer.content}
+                                                    </p>
 
-                                                    <div className="text-xs text-slate-500 mt-1">
-                                                        {new Date(ub.awarded_at).toLocaleDateString(
-                                                            'en-US',
-                                                            {
-                                                                month: 'short',
-                                                                year: 'numeric',
-                                                            }
-                                                        )}
+                                                    {/* Footer */}
+                                                    <div className="flex items-center justify-between mt-4 text-[11px] text-slate-500">
+
+                                                        <div className="flex items-center gap-3">
+
+                                                            <span>
+                                                                ⬆️ {answer.upvotes_count || 0}
+                                                            </span>
+
+                                                            {answer.is_accepted && (
+                                                                <span className="text-emerald-400 font-medium">
+                                                                    ✅ Accepted
+                                                                </span>
+                                                            )}
+
+                                                        </div>
+
+                                                        <span>
+                                                            {new Date(answer.created_at).toLocaleDateString(
+                                                                'en-IN',
+                                                                {
+                                                                    day: 'numeric',
+                                                                    month: 'short',
+                                                                }
+                                                            )}
+                                                        </span>
+
                                                     </div>
                                                 </div>
+                                            ))
+                                        ) : (
+                                            <div className="text-center py-10 text-slate-500 text-sm">
+                                                No answers yet
                                             </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-10">
-                                        <div className="text-4xl mb-3">🏅</div>
-                                        <div className="text-slate-500 text-sm">
-                                            No badges earned yet
-                                        </div>
-                                    </div>
-                                )}
-                            </>
-                        )}
+                                        )}
 
+                                    </div>
+                                </div>
+                            )}
+                            {/* Badges Tab */}
+                            {activeTab === 'badges' && (
+                                <>
+                                    {user?.badges?.length > 0 ? (
+                                        <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                                            {user.badges.map((ub, i) => (
+                                                <div
+                                                    key={i}
+                                                    className="flex items-center gap-3 bg-slate-800 border border-slate-700 rounded-xl p-3"
+                                                >
+                                                    <span className="text-2xl">
+                                                        {ub.icon || '🏅'}
+                                                    </span>
+
+                                                    <div>
+                                                        <div className="text-xs font-bold text-white">
+                                                            {ub.name}
+                                                        </div>
+
+                                                        <div className="text-xs text-slate-400">
+                                                            {ub.description}
+                                                        </div>
+
+                                                        <div className="text-xs text-slate-500 mt-1">
+                                                            {new Date(ub.awarded_at).toLocaleDateString(
+                                                                'en-US',
+                                                                {
+                                                                    month: 'short',
+                                                                    year: 'numeric',
+                                                                }
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-10">
+                                            <div className="text-4xl mb-3">🏅</div>
+                                            <div className="text-slate-500 text-sm">
+                                                No badges earned yet
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+
+                        </div>
                     </div>
-                </div>
+                ) : (
+                    // Private profile lock screen
+                    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-12 mb-5 flex flex-col items-center justify-center gap-4 text-center">
+                        <div className="w-16 h-16 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center">
+                            <svg className="w-7 h-7 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p className="text-white font-semibold text-sm">This account is private</p>
+                            <p className="text-slate-500 text-xs mt-1">
+                                Follow {user.first_name || user.username} to see their doubts, answers and badges
+                            </p>
+                        </div>
+                        {requestStatus === 'pending' ? (
+                            <div className="flex items-center gap-2 text-xs text-slate-400 bg-gray-800 px-4 py-2 rounded-full border border-gray-700">
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Follow request pending
+                            </div>
+                        ) : (
+                            !isOwnProfile && (
+                                <button
+                                    onClick={handleFollowAction}
+                                    disabled={followLoading}
+                                    className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-5 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
+                                >
+                                    {followLoading ? 'Please wait...' : 'Send Follow Request'}
+                                </button>
+                            )
+                        )}
+                    </div>
+                )}
             </div>
 
             <style>{`
@@ -660,6 +796,7 @@ export default function Profile() {
     background: rgba(139, 92, 246, 0.7);
 }
 `}</style>
-        </div>
+        </div >
     )
 }
+

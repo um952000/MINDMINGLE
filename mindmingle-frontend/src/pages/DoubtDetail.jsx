@@ -496,18 +496,12 @@ export default function DoubtDetail() {
             setAiLoading(true)
             setShowAIResponse(true)
 
-            const prompt = `
-Title: ${doubt.title}
+            const doubtData = {
+                doubt_title: doubt.title,
+                doubt_content: doubt.content
+            }
 
-Content:
-${doubt.content}
-
-Please solve this programming doubt in a beginner friendly way.
-Explain the issue clearly.
-Give corrected code if needed.
-`
-
-            const response = await aiAPI.solveDoubt(prompt)
+            const response = await aiAPI.solveDoubt(doubtData)
 
             console.log(response.data)
 

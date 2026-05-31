@@ -2,6 +2,8 @@ cd mindmingle-backend
 .\venv\Scripts\Activate.ps1
 python manage.py runserver 
 
+$env:DJANGO_SETTINGS_MODULE="mindmingle.settings"; daphne mindmingle.asgi:application
+
 
 superuser: username : golu11
            password : golu11

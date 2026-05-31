@@ -13,6 +13,7 @@ import EditProfile from "./pages/EditProfile"
 import FollowRequests from "./pages/FollowRequests"
 import ChatPage from "./pages/chatPage"
 import Home from "./pages/Home"
+import ListUsers from "./pages/ListUsers"
 
 const router = createBrowserRouter(
   createRoutesFromElements(
@@ -27,6 +28,8 @@ const router = createBrowserRouter(
       <Route path="/follow-requests" element={<FollowRequests />} />
       <Route path="/chat" element={<ChatPage />} />
       <Route path="/chat/:conversationId" element={<ChatPage />} />
+      <Route path="/users" element={<ListUsers />} />
+      <Route path="/doubts/:id/edit" element={<AskDoubt />} />
     </Route>
   )
 )

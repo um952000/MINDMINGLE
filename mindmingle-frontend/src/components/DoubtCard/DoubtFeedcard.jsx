@@ -1,16 +1,57 @@
-import { useState } from 'react'
-import { Heart, MessageCircle, Share2, MoreVertical, Bookmark, X, ChevronLeft, ChevronRight, ArrowUp, ArrowDown } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { useState, useRef, useEffect } from 'react'
+import { Heart, MessageCircle, Share2, MoreVertical, Bookmark, X, ChevronLeft, ChevronRight, ArrowUp, ArrowDown, Pencil, Trash2 } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 import { doubtAPI } from '../../services/api'
+import { useAuth } from '../../hooks/useAuth'
 
-export default function DoubtFeedCard({ doubt }) {
+export default function DoubtFeedCard({ doubt, onDelete }) {
+    const { user: authUser } = useAuth()
+    const navigate = useNavigate()
+
     const [upvotes, setUpvotes] = useState(doubt.upvotes_count || 0)
     const [downvotes, setDownvotes] = useState(doubt.downvotes_count || 0)
-    const [upvoted, setUpvoted] = useState(doubt.user_upvoted || false)    // ✅ from API
-    const [downvoted, setDownvoted] = useState(doubt.user_downvoted || false) // ✅ from API
+    const [upvoted, setUpvoted] = useState(doubt.user_upvoted || false)
+    const [downvoted, setDownvoted] = useState(doubt.user_downvoted || false)
     const [saved, setSaved] = useState(false)
     const [lightbox, setLightbox] = useState({ open: false, index: 0 })
     const [copied, setCopied] = useState(false)
+    const [menuOpen, setMenuOpen] = useState(false)
+    const [deleteConfirm, setDeleteConfirm] = useState(false)
+    const [deleting, setDeleting] = useState(false)
+    const menuRef = useRef(null)
+
+    const isAuthor = authUser?.id === doubt.author?.id ||
+        authUser?.user_id === doubt.author?.id
+
+    // close menu on outside click
+    useEffect(() => {
+        const handler = (e) => {
+            if (menuRef.current && !menuRef.current.contains(e.target)) {
+                setMenuOpen(false)
+                setDeleteConfirm(false)
+            }
+        }
+        document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [])
+
+    const handleDelete = async () => {
+        if (!deleteConfirm) {
+            setDeleteConfirm(true)
+            return
+        }
+        try {
+            setDeleting(true)
+            await doubtAPI.deleteDoubt(doubt.id)
+            setMenuOpen(false)
+            onDelete?.(doubt.id)   // let parent remove it from list
+        } catch (e) {
+            console.error(e)
+        } finally {
+            setDeleting(false)
+            setDeleteConfirm(false)
+        }
+    }
 
     const handleUpvote = async () => {
         try {
@@ -31,7 +72,6 @@ export default function DoubtFeedCard({ doubt }) {
             setDownvoted(res.data.user_downvoted)
         } catch (e) { console.error(e) }
     }
-
 
     const openLightbox = (e, idx) => {
         e.preventDefault()
@@ -61,26 +101,15 @@ export default function DoubtFeedCard({ doubt }) {
 
     const handleShare = async () => {
         const url = `${window.location.origin}/doubts/${doubt.id}`
-        const shareData = {
-            title: doubt.title,
-            text: `Check out this doubt on Mind Mingle: ${doubt.title}`,
-            url: url,
-        }
-
         try {
-            // ✅ Native share sheet on mobile (Android/iOS)
             if (navigator.share) {
-                await navigator.share(shareData)
+                await navigator.share({ title: doubt.title, text: `Check out this doubt on Mind Mingle: ${doubt.title}`, url })
             } else {
-                // ✅ Fallback — copy to clipboard on desktop
                 await navigator.clipboard.writeText(url)
                 setCopied(true)
                 setTimeout(() => setCopied(false), 2000)
             }
-        } catch (e) {
-            // User cancelled share or error
-            console.error(e)
-        }
+        } catch (e) { console.error(e) }
     }
 
     return (
@@ -101,52 +130,79 @@ export default function DoubtFeedCard({ doubt }) {
                                 <p className="text-xs text-slate-500">{timeAgo(doubt.created_at)}</p>
                             </div>
                         </Link>
-                        <button className="p-2 hover:bg-gray-800 rounded-full transition-colors">
-                            <MoreVertical className="w-4 h-4 text-slate-500" />
-                        </button>
+
+                        {/* More menu */}
+                        <div className="relative" ref={menuRef}>
+                            <button
+                                onClick={() => { setMenuOpen(o => !o); setDeleteConfirm(false) }}
+                                className="p-2 hover:bg-gray-800 rounded-full transition-colors"
+                            >
+                                <MoreVertical className="w-4 h-4 text-slate-500" />
+                            </button>
+
+                            {menuOpen && (
+                                <div className="absolute right-0 top-9 w-44 bg-gray-900 border border-gray-800 rounded-xl shadow-xl z-50 overflow-hidden">
+                                    {isAuthor ? (
+                                        <>
+                                            <button
+                                                onClick={() => {
+                                                    setMenuOpen(false)
+                                                    navigate(`/doubts/${doubt.id}/edit`)
+                                                }}
+                                                className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-slate-300 hover:bg-gray-800 hover:text-violet-400 transition-colors"
+                                            >
+                                                <Pencil className="w-3.5 h-3.5" />
+                                                Edit doubt
+                                            </button>
+
+                                            <div className="h-px bg-gray-800" />
+
+                                            <button
+                                                onClick={handleDelete}
+                                                disabled={deleting}
+                                                className={`flex items-center gap-2.5 w-full px-4 py-2.5 text-sm transition-colors ${deleteConfirm
+                                                    ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
+                                                    : 'text-slate-300 hover:bg-gray-800 hover:text-red-400'
+                                                    }`}
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                                {deleting ? 'Deleting...' : deleteConfirm ? 'Confirm delete' : 'Delete doubt'}
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <button className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-slate-300 hover:bg-gray-800 transition-colors">
+                                            🚩 No actions available
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                {/* Content */}
+                {/* Content — unchanged */}
                 <div className="p-5">
-                    {/* <Link to={`/doubts/${doubt.id}`}> */}
-                    <Link
-                        to={`/doubts/${doubt.id}`}
-                        state={{ from: '/' }}
-                    >
+                    <Link to={`/doubts/${doubt.id}`} state={{ from: '/' }}>
                         <h2 className="text-base font-bold text-slate-100 mb-2 line-clamp-2 leading-snug hover:text-violet-400 transition-colors">
                             {doubt.title}
                         </h2>
                     </Link>
+                    <p className="text-sm text-slate-400 mb-4 line-clamp-3 leading-relaxed">{doubt.content}</p>
 
-                    <p className="text-sm text-slate-400 mb-4 line-clamp-3 leading-relaxed">
-                        {doubt.content}
-                    </p>
-
-                    {/* Tags */}
                     {doubt.tags && doubt.tags.length > 0 && (
                         <div className="flex flex-wrap gap-2 mb-4">
                             {doubt.tags.slice(0, 3).map(tag => (
-                                <span
-                                    key={tag.id}
-                                    className="px-2.5 py-1 bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs rounded-full font-medium"
-                                >
+                                <span key={tag.id} className="px-2.5 py-1 bg-violet-500/10 border border-violet-500/20 text-violet-300 text-xs rounded-full font-medium">
                                     #{tag.name}
                                 </span>
                             ))}
                         </div>
                     )}
 
-                    {/* Images */}
                     {doubt.images && doubt.images.length > 0 && (
-                        <div className={`grid gap-2 mb-4 rounded-xl overflow-hidden ${doubt.images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'
-                            }`}>
+                        <div className={`grid gap-2 mb-4 rounded-xl overflow-hidden ${doubt.images.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
                             {doubt.images.slice(0, 4).map((image, idx) => (
-                                <div
-                                    key={image.id}
-                                    className="relative cursor-zoom-in"
-                                    onClick={(e) => openLightbox(e, idx)}
-                                >
+                                <div key={image.id} className="relative cursor-zoom-in" onClick={(e) => openLightbox(e, idx)}>
                                     <img
                                         src={image.image}
                                         alt="doubt attachment"
@@ -164,81 +220,33 @@ export default function DoubtFeedCard({ doubt }) {
                     )}
                 </div>
 
-                {/* Actions */}
+                {/* Actions — unchanged */}
                 <div className="px-5 py-3 border-t border-gray-800">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-
-                            {/* Upvote */}
-                            <button
-                                onClick={handleUpvote}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${upvoted
-                                    ? 'bg-green-500/15 text-green-400 border border-green-500/20'
-                                    : 'text-slate-500 hover:text-green-400 hover:bg-green-500/10'
-                                    }`}
-                            >
-                                <ArrowUp className="w-4 h-4" />
-                                {upvotes}
+                            <button onClick={handleUpvote} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${upvoted ? 'bg-green-500/15 text-green-400 border border-green-500/20' : 'text-slate-500 hover:text-green-400 hover:bg-green-500/10'}`}>
+                                <ArrowUp className="w-4 h-4" />{upvotes}
                             </button>
-
-                            {/* Downvote */}
-                            <button
-                                onClick={handleDownvote}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${downvoted
-                                    ? 'bg-red-500/15 text-red-400 border border-red-500/20'
-                                    : 'text-slate-500 hover:text-red-400 hover:bg-red-500/10'
-                                    }`}
-                            >
-                                <ArrowDown className="w-4 h-4" />
-                                {downvotes}
+                            <button onClick={handleDownvote} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${downvoted ? 'bg-red-500/15 text-red-400 border border-red-500/20' : 'text-slate-500 hover:text-red-400 hover:bg-red-500/10'}`}>
+                                <ArrowDown className="w-4 h-4" />{downvotes}
                             </button>
-
-                            {/* Answers */}
-                            <Link
-                                to={`/doubts/${doubt.id}`}
-                                state={{ from: '/' }}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-full text-sm font-medium transition-all"
-                            >
-                                <MessageCircle className="w-4 h-4" />
-                                {doubt.answers_count}
+                            <Link to={`/doubts/${doubt.id}`} state={{ from: '/' }} className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 hover:text-violet-400 hover:bg-violet-500/10 rounded-full text-sm font-medium transition-all">
+                                <MessageCircle className="w-4 h-4" />{doubt.answers_count}
                             </Link>
-
-                            {/* Share */}
-                            <button
-                                onClick={handleShare}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${copied
-                                    ? 'text-green-400 bg-green-500/10'
-                                    : 'text-slate-500 hover:text-slate-300 hover:bg-gray-800'
-                                    }`}
-                            >
-                                {copied ? (
-                                    <>✓ Copied!</>
-                                ) : (
-                                    <><Share2 className="w-4 h-4" /> Share</>
-                                )}
+                            <button onClick={handleShare} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${copied ? 'text-green-400 bg-green-500/10' : 'text-slate-500 hover:text-slate-300 hover:bg-gray-800'}`}>
+                                {copied ? <>✓ Copied!</> : <><Share2 className="w-4 h-4" /> Share</>}
                             </button>
                         </div>
-
-                        {/* Save */}
-                        <button
-                            onClick={() => setSaved(s => !s)}
-                            className={`p-2 rounded-full transition-all ${saved
-                                ? 'text-violet-400 bg-violet-500/10'
-                                : 'text-slate-500 hover:text-slate-300 hover:bg-gray-800'
-                                }`}
-                        >
+                        <button onClick={() => setSaved(s => !s)} className={`p-2 rounded-full transition-all ${saved ? 'text-violet-400 bg-violet-500/10' : 'text-slate-500 hover:text-slate-300 hover:bg-gray-800'}`}>
                             <Bookmark className={`w-4 h-4 ${saved ? 'fill-violet-400' : ''}`} />
                         </button>
                     </div>
                 </div>
             </article>
 
-            {/* Lightbox */}
+            {/* Lightbox — unchanged */}
             {lightbox.open && (
-                <div
-                    className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center"
-                    onClick={closeLightbox}
-                >
+                <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center" onClick={closeLightbox}>
                     <button onClick={closeLightbox} className="absolute top-4 right-4 text-white bg-white/10 hover:bg-white/20 rounded-full p-2 transition-all">
                         <X className="w-6 h-6" />
                     </button>
@@ -250,12 +258,7 @@ export default function DoubtFeedCard({ doubt }) {
                             <ChevronLeft className="w-6 h-6" />
                         </button>
                     )}
-                    <img
-                        src={doubt.images[lightbox.index].image}
-                        alt="full view"
-                        className="max-h-[90vh] max-w-[90vw] object-contain rounded-xl shadow-2xl"
-                        onClick={(e) => e.stopPropagation()}
-                    />
+                    <img src={doubt.images[lightbox.index].image} alt="full view" className="max-h-[90vh] max-w-[90vw] object-contain rounded-xl shadow-2xl" onClick={(e) => e.stopPropagation()} />
                     {doubt.images.length > 1 && (
                         <button onClick={nextImage} className="absolute right-4 text-white bg-white/10 hover:bg-white/20 rounded-full p-3 transition-all">
                             <ChevronRight className="w-6 h-6" />
@@ -266,3 +269,4 @@ export default function DoubtFeedCard({ doubt }) {
         </>
     )
 }
+
