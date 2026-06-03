@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 from pathlib import Path
+import dj_database_url
 from dotenv import load_dotenv
 from datetime import timedelta
 
@@ -26,13 +27,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-xyte6i=-n7288(7m^zotys605ctpe0+0m%4@yjf9+@k@w%+-9a'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'fallback-secret-key-for-local')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
 # ALLOWED_HOSTS = ['localhost', '127.0.0.1']
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    os.environ.get('RENDER_EXTERNAL_HOSTNAME', ''),  # auto set by Render
+]
+
 
 
 # Application definition
@@ -119,28 +125,26 @@ TEMPLATES = [
 WSGI_APPLICATION = 'mindmingle.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-
 # DATABASES = {
 #     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'mindmingle',
+#         'USER': 'postgres',
+#         'PASSWORD': 'mindmingle123',  # Set this password
+#         'HOST': 'localhost',
+#         'PORT': '5432',
 #     }
 # }
-# mindmingle/settings.py - DATABASES section ONLY
+
+
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'mindmingle',
-        'USER': 'postgres',
-        'PASSWORD': 'mindmingle123',  # Set this password
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
+    'default': dj_database_url.parse(
+        os.environ.get('DATABASE_URL', 'postgresql://neondb_owner:npg_Xs2TNixh9HSw@ep-damp-king-apv1gyze.c-7.us-east-1.aws.neon.tech/neondb?sslmode=require'),
+        conn_max_age=600,
+        ssl_require=not DEBUG,  # SSL only in production
+    )
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -190,15 +194,16 @@ REST_FRAMEWORK = {
 
 
 CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {"hosts": [('127.0.0.1', 6379)]},
-    },
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
+    }
 }
 
+# ✅ CORS — add your Vercel URL here after deploying React
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    # "https://your-app.vercel.app",  # ← uncomment after React deploy
 ]
 
 CORS_ALLOW_ALL_ORIGINS = False
@@ -251,14 +256,14 @@ SWAGGER_SETTINGS = {
     }
 }
 
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [("127.0.0.1", 6379)],
-        },
-    },
-}
+# CHANNEL_LAYERS = {
+#     "default": {
+#         "BACKEND": "channels_redis.core.RedisChannelLayer",
+#         "CONFIG": {
+#             "hosts": [("127.0.0.1", 6379)],
+#         },
+#     },
+# }
 
 
 
