@@ -1,7 +1,7 @@
 // Axios is a library for making HTTP(GET, POST, PUT etc) requests. We'll use it to communicate with our Django backend API.
 import axios from 'axios'
 
-const API_BASE = 'http://localhost:8000/api'  // Your Django API
+const API_BASE = "https://mindmingle-0phf.onrender.com/api"; // Your Django API
 
 //create an axios instance with default settings for our API. This allows us to easily manage headers, base URL, and other settings in one place.
 const api = axios.create({
