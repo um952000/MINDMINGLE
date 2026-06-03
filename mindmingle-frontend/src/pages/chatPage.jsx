@@ -295,8 +295,9 @@ import { useLocation } from 'react-router-dom'
 
 import { chatAPI } from '../services/api'
 
-import ConversationList from '../components/chat/ConversationList'
-import ChatWindow from '../components/chat/ChatWindow'
+import ChatWindow from '../components/Chat/ChatWindow'
+import ConversationList from '../components/Chat/ConversationList'
+
 
 export default function ChatPage() {
 
