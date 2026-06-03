@@ -68,7 +68,7 @@ export default function AskDoubt() {
                     formDataImage.append('image', image)
                     formDataImage.append('doubt', id)
 
-                    await fetch('http://localhost:8000/api/doubts/images/', {
+                    await fetch('https://mindmingle-0phf.onrender.com/api/doubts/images/', {
                         method: 'POST',
                         headers: {
                             'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -94,7 +94,7 @@ export default function AskDoubt() {
                     formDataImage.append('image', image)
                     formDataImage.append('doubt', doubtId)
 
-                    await fetch('http://localhost:8000/api/doubts/images/', {
+                    await fetch('https://mindmingle-0phf.onrender.com/api/doubts/images/', {
                         method: 'POST',
                         headers: {
                             'Authorization': `Bearer ${localStorage.getItem('token')}`
