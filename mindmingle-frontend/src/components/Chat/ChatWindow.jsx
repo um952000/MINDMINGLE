@@ -100,8 +100,8 @@ export default function ChatWindow({ conversation, messages, setMessages }) {
         if (!token) return
 
         const ws = new WebSocket(
-            `ws://127.0.0.1:8000/ws/chat/${conversation.id}/?token=${token}`
-        )
+            `wss://mindmingle-0phf.onrender.com/ws/chat/${conversation.id}/?token=${token}`
+        );
         socketRef.current = ws
 
         ws.onopen = () => console.log('WebSocket Connected')

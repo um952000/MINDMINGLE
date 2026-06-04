@@ -298,7 +298,11 @@ export default function Profile() {
                             <div className="w-24 h-24 rounded-full bg-gray-900 border-4 border-gray-950 flex items-center justify-center text-3xl font-black text-violet-400 overflow-hidden">
                                 {user.avatar ? (
                                     <img
-                                        src={user.avatar.startsWith('http') ? user.avatar : `http://127.0.0.1:8000${user.avatar}`}
+                                        src={
+                                            user.avatar.startsWith("http")
+                                                ? user.avatar
+                                                : `https://mindmingle-0phf.onrender.com${user.avatar}`
+                                        }
                                         alt=""
                                         className="w-full h-full object-cover"
                                     />

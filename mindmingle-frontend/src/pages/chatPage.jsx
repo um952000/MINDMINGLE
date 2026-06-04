@@ -323,7 +323,9 @@ export default function ChatPage() {
         const token = localStorage.getItem('token')
         if (!token) return
 
-        const ws = new WebSocket(`ws://127.0.0.1:8000/ws/notifications/?token=${token}`)
+        const ws = new WebSocket(
+            `wss://mindmingle-0phf.onrender.com/ws/notifications/?token=${token}`
+        );
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data)
